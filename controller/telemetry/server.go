@@ -181,6 +181,11 @@ func NewServer(addr, prometheusUrl string, ignoredNamespaces []string, kubeconfi
 	return s, lis, nil
 }
 
+func timeTrack(start time.Time, name string, queryRange v1.Range) {
+	elapsed := time.Since(start)
+	log.Debugf("%s (%s) took %s", name, queryRange, elapsed)
+}
+
 func (s *server) Query(ctx context.Context, req *read.QueryRequest) (*read.QueryResponse, error) {
 	log.Debugf("Query request: %+v", req)
 
@@ -194,6 +199,8 @@ func (s *server) Query(ctx context.Context, req *read.QueryRequest) (*read.Query
 	}
 
 	queryRange := v1.Range{Start: start, End: end, Step: step}
+	defer timeTrack(time.Now(), req.Query, queryRange)
+
 	res, err := s.prometheusApi.QueryRange(ctx, req.Query, queryRange)
 	if err != nil {
 		log.Errorf("QueryRange(%+v, %+v) failed with: %+v", req.Query, queryRange, err)

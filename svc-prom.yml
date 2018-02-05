@@ -1,0 +1,18 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: prometheus
+  namespace: conduit
+  labels:
+    app: prometheus
+    conduit.io/control-plane-component: prometheus
+  annotations:
+    conduit.io/created-by: conduit/cli unknown
+spec:
+  type: LoadBalancer
+  selector:
+    app: prometheus
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
