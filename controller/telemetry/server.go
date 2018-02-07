@@ -240,21 +240,28 @@ func (s *server) Query(ctx context.Context, req *read.QueryRequest) (*read.Query
 	} else {
 		defer timeTrack(time.Now(), req.Query, queryRange)
 
-		res, err = s.prometheusApi.Query(ctx, req.Query, time.Unix(0, 0))
+		res, err = s.prometheusApi.Query(ctx, req.Query, time.Time{})
 		if err != nil {
-			log.Errorf("Query(%+v, %+v) failed with: %+v", req.Query, time.Unix(0, 0), err)
+			log.Errorf("Query(%+v, %+v) failed with: %+v", req.Query, time.Time{}, err)
 			return nil, err
 		}
 	}
-
-	// TODO: handle model.ValVector for Query() calls
-	if res.Type() != model.ValMatrix {
-		return nil, fmt.Errorf("Unexpected query result type: %s", res.Type())
-	}
+	log.Debugf("Query response: %+v", res)
 
 	samples := make([]*read.Sample, 0)
-	for _, s := range res.(model.Matrix) {
-		samples = append(samples, convertSampleStream(s))
+	switch res.Type() {
+	case model.ValMatrix:
+		for _, s := range res.(model.Matrix) {
+			samples = append(samples, convertSampleStream(s))
+		}
+	case model.ValVector:
+		for _, s := range res.(model.Vector) {
+			samples = append(samples, convertSample(s))
+		}
+	default:
+		err = fmt.Errorf("Unexpected query result type: %s", res.Type())
+		log.Errorf("%s", err)
+		return nil, err
 	}
 
 	return &read.QueryResponse{Metrics: samples}, nil
@@ -430,6 +437,22 @@ func convertSampleStream(sample *model.SampleStream) *read.Sample {
 			TimestampMs: int64(s.Timestamp),
 		}
 		values = append(values, &v)
+	}
+
+	return &read.Sample{Values: values, Labels: labels}
+}
+
+func convertSample(sample *model.Sample) *read.Sample {
+	labels := make(map[string]string)
+	for k, v := range sample.Metric {
+		labels[string(k)] = string(v)
+	}
+
+	values := []*read.SampleValue{
+		&read.SampleValue{
+			Value:       float64(sample.Value),
+			TimestampMs: int64(sample.Timestamp),
+		},
 	}
 
 	return &read.Sample{Values: values, Labels: labels}

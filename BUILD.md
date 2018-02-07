@@ -203,12 +203,22 @@ histogram_quantile(0.95, sum(irate(response_latency_ms_bucket{source_deployment=
 histogram_quantile(0.5, sum(irate(response_latency_ms_bucket{source_deployment="emojivoto/web"}[1m])) by (target_deployment,le,source_deployment))
 ```
 
+#### Prometheus queries
+
 - decrease `defaultVectorRange` (and use it all the time) from `1m` to `30s`, 3x multiple of prometheus' `scrape_interval: 10s`
 - don't query for entire timeseries on summarize queries
   - replace `queryRange` with `query`
 - change `irate` to `rate` in `histogram_quantile` (maybe not if we're doing `query` not `queryRange`?)
+- increase the value of `step`, less resolution, but fewer data points
 - recording rules
   - histogram_quantile / latency
+
+#### Telemetry service queries
+
+- in public-api / `grpc-server.go`
+  - `api/metrics?&timeseries=true&target_deploy=emojivoto/voting&window=10m` yields 5 queries, make parallel
+  - at least make p50/p95/99 queries in parallel
+- connect public-api directly to prometheus, remove telemetry
 
 ## Go
 

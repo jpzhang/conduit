@@ -39,7 +39,7 @@ const (
 	countGrpcQuery                  = "sum(irate(grpc_server_handled_total{%s}[%s])) by (%s)"
 	latencyQuery                    = "sum(irate(response_latency_ms_bucket{%s}[%s])) by (%s)"
 	quantileQuery                   = "histogram_quantile(%s, %s)"
-	defaultVectorRange              = "30s"
+	defaultVectorRange              = "30s" // 3x scrape_interval in prometheus config
 	targetPodLabel                  = "target"
 	targetDeployLabel               = "target_deployment"
 	sourcePodLabel                  = "source"
@@ -305,16 +305,16 @@ func (s *grpcServer) queryCount(ctx context.Context, req *pb.MetricRequest, rawQ
 		return nil, err
 	}
 
-	start, end, step, err := queryParams(req)
-	if err != nil {
-		return nil, err
-	}
-
 	queryReq := &telemPb.QueryRequest{
 		Query: query,
 	}
 
 	if !req.Summarize {
+		start, end, step, err := queryParams(req)
+		if err != nil {
+			return nil, err
+		}
+
 		queryReq.StartMs = start
 		queryReq.EndMs = end
 		queryReq.Step = step
@@ -325,9 +325,9 @@ func (s *grpcServer) queryCount(ctx context.Context, req *pb.MetricRequest, rawQ
 		return nil, err
 	}
 
-	if req.Summarize {
-		filterQueryRsp(queryRsp, end)
-	}
+	// if req.Summarize {
+	// 	filterQueryRsp(queryRsp, end)
+	// }
 
 	return queryRsp, nil
 }
@@ -341,17 +341,18 @@ func (s *grpcServer) queryLatency(ctx context.Context, req *pb.MetricRequest) (m
 		return nil, err
 	}
 
-	start, end, step, err := queryParams(req)
-	if err != nil {
-		return nil, err
-	}
-
 	for quantile, label := range quantileMap {
 		q := fmt.Sprintf(quantileQuery, quantile, query)
 		queryReq := &telemPb.QueryRequest{
 			Query: q,
 		}
+
 		if !req.Summarize {
+			start, end, step, err := queryParams(req)
+			if err != nil {
+				return nil, err
+			}
+
 			queryReq.StartMs = start
 			queryReq.EndMs = end
 			queryReq.Step = step
@@ -361,9 +362,9 @@ func (s *grpcServer) queryLatency(ctx context.Context, req *pb.MetricRequest) (m
 		if err != nil {
 			return nil, err
 		}
-		if req.Summarize {
-			filterQueryRsp(queryRsp, end)
-		}
+		// if req.Summarize {
+		// 	filterQueryRsp(queryRsp, end)
+		// }
 		queryRsps[label] = queryRsp
 	}
 
