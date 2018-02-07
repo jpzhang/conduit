@@ -100,7 +100,7 @@
           "title": "controller component avg latency",
           "tooltip": {
             "shared": true,
-            "sort": 2,
+            "sort": 0,
             "value_type": "individual"
           },
           "type": "graph",
@@ -113,7 +113,7 @@
           },
           "yaxes": [
             {
-              "format": "s",
+              "format": "short",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -174,13 +174,13 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(http_request_duration_microseconds_sum{handler=\"query_range\"}[1m])/ rate(http_request_duration_microseconds_count{handler=\"query_range\"}[1m])",
+              "expr": "rate(http_request_duration_microseconds_sum{handler=\"query_range\"}[1m])/ rate(http_request_duration_microseconds_count{handler=\"query_range\"}[1m]) / 1000000",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
             },
             {
-              "expr": "rate(http_request_duration_microseconds_sum{handler=\"query\"}[1m])/ rate(http_request_duration_microseconds_count{handler=\"query\"}[1m])",
+              "expr": "rate(http_request_duration_microseconds_sum{handler=\"query\"}[1m])/ rate(http_request_duration_microseconds_count{handler=\"query\"}[1m]) / 1000000",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "B"
@@ -205,7 +205,7 @@
           },
           "yaxes": [
             {
-              "format": "µs",
+              "format": "short",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -232,7 +232,7 @@
     },
     {
       "collapse": false,
-      "height": 250,
+      "height": 404,
       "panels": [
         {
           "aliasColors": {},
@@ -240,19 +240,27 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": null,
+          "decimals": 2,
           "fill": 1,
+          "height": "",
           "id": 3,
           "legend": {
-            "avg": false,
-            "current": false,
-            "max": false,
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "hideEmpty": true,
+            "max": true,
             "min": false,
+            "rightSide": false,
             "show": true,
+            "sort": "avg",
+            "sortDesc": true,
             "total": false,
-            "values": false
+            "values": true
           },
           "lines": true,
           "linewidth": 1,
+          "links": [],
           "nullPointMode": "null",
           "percentage": false,
           "pointradius": 5,
@@ -265,19 +273,20 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "",
+              "expr": "rate(prometheus_latency_ms_sum[30s])/ rate(prometheus_latency_ms_count[30s])",
               "format": "time_series",
               "intervalFactor": 1,
+              "legendFormat": "{{query}} [{{range}} {{step}}]",
               "refId": "A"
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Panel Title",
+          "title": "avg prometheus/telemetry latencies",
           "tooltip": {
             "shared": true,
-            "sort": 0,
+            "sort": 2,
             "value_type": "individual"
           },
           "type": "graph",
@@ -290,7 +299,7 @@
           },
           "yaxes": [
             {
-              "format": "short",
+              "format": "ms",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -303,7 +312,209 @@
               "logBase": 1,
               "max": null,
               "min": null,
+              "show": false
+            }
+          ]
+        }
+      ],
+      "repeat": null,
+      "repeatIteration": null,
+      "repeatRowId": null,
+      "showTitle": false,
+      "title": "Dashboard Row",
+      "titleSize": "h6"
+    },
+    {
+      "collapse": false,
+      "height": 250,
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": null,
+          "decimals": 2,
+          "fill": 1,
+          "height": "",
+          "id": 5,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "hideEmpty": true,
+            "max": true,
+            "min": false,
+            "rightSide": false,
+            "show": true,
+            "sort": "avg",
+            "sortDesc": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 12,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.5, sum(rate(prometheus_latency_ms_bucket[30s])) by (le))",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(prometheus_latency_ms_bucket[30s])) by (le))",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(prometheus_latency_ms_bucket[30s])) by (le))",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "sum(avg prometheus/telemetry latencies)",
+          "tooltip": {
+            "shared": true,
+            "sort": 2,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "ms",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
               "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
+            }
+          ]
+        }
+      ],
+      "repeat": null,
+      "repeatIteration": null,
+      "repeatRowId": null,
+      "showTitle": false,
+      "title": "Dashboard Row",
+      "titleSize": "h6"
+    },
+    {
+      "collapse": false,
+      "height": 250,
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": null,
+          "fill": 1,
+          "id": 4,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": false,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 12,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(prometheus_latency_ms_bucket[30s])) by (le, query, range))",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "p95 {{query}} [{{range}}]",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(prometheus_latency_ms_bucket[30s])) by (le, query, range))",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "p99 {{query}} [{{range}}]",
+              "refId": "B"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "prometheus/telemetry latencies",
+          "tooltip": {
+            "shared": true,
+            "sort": 2,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "ms",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
             }
           ]
         }
@@ -353,5 +564,5 @@
   },
   "timezone": "",
   "title": "GKE Latency",
-  "version": 1
+  "version": 6
 }

@@ -39,7 +39,7 @@ const (
 	countGrpcQuery                  = "sum(irate(grpc_server_handled_total{%s}[%s])) by (%s)"
 	latencyQuery                    = "sum(irate(response_latency_ms_bucket{%s}[%s])) by (%s)"
 	quantileQuery                   = "histogram_quantile(%s, %s)"
-	defaultVectorRange              = "1m"
+	defaultVectorRange              = "30s"
 	targetPodLabel                  = "target"
 	targetDeployLabel               = "target_deployment"
 	sourcePodLabel                  = "source"
@@ -311,10 +311,13 @@ func (s *grpcServer) queryCount(ctx context.Context, req *pb.MetricRequest, rawQ
 	}
 
 	queryReq := &telemPb.QueryRequest{
-		Query:   query,
-		StartMs: start,
-		EndMs:   end,
-		Step:    step,
+		Query: query,
+	}
+
+	if !req.Summarize {
+		queryReq.StartMs = start
+		queryReq.EndMs = end
+		queryReq.Step = step
 	}
 
 	queryRsp, err := s.telemetryClient.Query(ctx, queryReq)
@@ -346,11 +349,14 @@ func (s *grpcServer) queryLatency(ctx context.Context, req *pb.MetricRequest) (m
 	for quantile, label := range quantileMap {
 		q := fmt.Sprintf(quantileQuery, quantile, query)
 		queryReq := &telemPb.QueryRequest{
-			Query:   q,
-			StartMs: start,
-			EndMs:   end,
-			Step:    step,
+			Query: q,
 		}
+		if !req.Summarize {
+			queryReq.StartMs = start
+			queryReq.EndMs = end
+			queryReq.Step = step
+		}
+
 		queryRsp, err := s.telemetryClient.Query(ctx, queryReq)
 		if err != nil {
 			return nil, err
@@ -405,13 +411,13 @@ func formatQuery(query string, req *pb.MetricRequest, sumBy string) (string, err
 	}
 
 	duration := defaultVectorRange
-	if req.Summarize {
-		durationStr, err := util.GetWindowString(req.Window)
-		if err != nil {
-			return "", err
-		}
-		duration = durationStr
-	}
+	// if req.Summarize {
+	// 	durationStr, err := util.GetWindowString(req.Window)
+	// 	if err != nil {
+	// 		return "", err
+	// 	}
+	// 	duration = durationStr
+	// }
 
 	return fmt.Sprintf(
 		query,

@@ -63,12 +63,30 @@ var (
 		},
 		requestLabels,
 	)
+
+	promLatencyBuckets = append(append(append(append(append(
+		prometheus.LinearBuckets(1, 1, 5),
+		prometheus.LinearBuckets(10, 10, 5)...),
+		prometheus.LinearBuckets(100, 100, 5)...),
+		prometheus.LinearBuckets(1000, 1000, 5)...),
+		prometheus.LinearBuckets(10000, 10000, 5)...),
+	)
+
+	promLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "prometheus_latency_ms",
+			Help:    "Prometheus latency in milliseconds",
+			Buckets: promLatencyBuckets,
+		},
+		[]string{"query", "range", "step"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(requestsTotal)
 	prometheus.MustRegister(responsesTotal)
 	prometheus.MustRegister(responseLatency)
+	prometheus.MustRegister(promLatency)
 }
 
 type (
@@ -183,30 +201,53 @@ func NewServer(addr, prometheusUrl string, ignoredNamespaces []string, kubeconfi
 
 func timeTrack(start time.Time, name string, queryRange v1.Range) {
 	elapsed := time.Since(start)
-	log.Debugf("%s (%s) took %s", name, queryRange, elapsed)
+	log.Infof("%s (%s) took %s", name, queryRange, elapsed)
+
+	promLatency.With(prometheus.Labels{
+		"query": name,
+		"range": queryRange.End.Sub(queryRange.Start).String(),
+		"step":  queryRange.Step.String(),
+	}).Observe(float64(elapsed.Nanoseconds() / 1000000))
 }
 
 func (s *server) Query(ctx context.Context, req *read.QueryRequest) (*read.QueryResponse, error) {
 	log.Debugf("Query request: %+v", req)
 
-	start := time.Unix(0, req.StartMs*int64(time.Millisecond))
-	end := time.Unix(0, req.EndMs*int64(time.Millisecond))
+	queryRange := v1.Range{}
+	var res model.Value
+	var err error
 
-	step, err := time.ParseDuration(req.Step)
-	if err != nil {
-		log.Errorf("ParseDuration(%+v) failed with: %+v", req.Step, err)
-		return nil, err
+	if req.StartMs != 0 && req.EndMs != 0 && req.Step != "" {
+		start := time.Unix(0, req.StartMs*int64(time.Millisecond))
+		end := time.Unix(0, req.EndMs*int64(time.Millisecond))
+		step, err := time.ParseDuration(req.Step)
+		if err != nil {
+			log.Errorf("ParseDuration(%+v) failed with: %+v", req.Step, err)
+			return nil, err
+		}
+
+		queryRange.Start = start
+		queryRange.End = end
+		queryRange.Step = step
+
+		defer timeTrack(time.Now(), req.Query, queryRange)
+
+		res, err = s.prometheusApi.QueryRange(ctx, req.Query, queryRange)
+		if err != nil {
+			log.Errorf("QueryRange(%+v, %+v) failed with: %+v", req.Query, queryRange, err)
+			return nil, err
+		}
+	} else {
+		defer timeTrack(time.Now(), req.Query, queryRange)
+
+		res, err = s.prometheusApi.Query(ctx, req.Query, time.Unix(0, 0))
+		if err != nil {
+			log.Errorf("Query(%+v, %+v) failed with: %+v", req.Query, time.Unix(0, 0), err)
+			return nil, err
+		}
 	}
 
-	queryRange := v1.Range{Start: start, End: end, Step: step}
-	defer timeTrack(time.Now(), req.Query, queryRange)
-
-	res, err := s.prometheusApi.QueryRange(ctx, req.Query, queryRange)
-	if err != nil {
-		log.Errorf("QueryRange(%+v, %+v) failed with: %+v", req.Query, queryRange, err)
-		return nil, err
-	}
-
+	// TODO: handle model.ValVector for Query() calls
 	if res.Type() != model.ValMatrix {
 		return nil, fmt.Errorf("Unexpected query result type: %s", res.Type())
 	}

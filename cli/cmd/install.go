@@ -124,7 +124,7 @@ metadata:
   annotations:
     {{.CreatedByAnnotation}}: {{.CliVersion}}
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: controller
   ports:

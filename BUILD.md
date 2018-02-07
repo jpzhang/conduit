@@ -153,6 +153,63 @@ bin/conduit stat deployments
 bin/conduit tap deploy emojivoto/voting
 ```
 
+## Telemetry testing
+
+```bash
+# view prometheus dashboard
+minikube -n conduit service prometheus --url
+
+# get proxy-api endpoint
+minikube -n conduit service prometheus --url
+
+# simulate traffic
+bin/go-run controller/script/simulate-proxy --kubeconfig ~/.kube/config --addr 192.168.99.101:31194 --sleep 10ms
+
+# tail telemetry
+stern -n conduit controller -c telemetry
+```
+
+### Modifications
+
+```golang
+countQuery                      = "sum(irate(responses_total{%s}[%s])) by (%s)"
+countHttpQuery                  = "sum(irate(http_requests_total{%s}[%s])) by (%s)"
+countGrpcQuery                  = "sum(irate(grpc_server_handled_total{%s}[%s])) by (%s)"
+latencyQuery                    = "sum(irate(response_latency_ms_bucket{%s}[%s])) by (%s)"
+quantileQuery                   = "histogram_quantile(%s, %s)"
+defaultVectorRange              = "1m"
+targetPodLabel                  = "target"
+targetDeployLabel               = "target_deployment"
+sourcePodLabel                  = "source"
+sourceDeployLabel               = "source_deployment"
+jobLabel                        = "job"
+pathLabel                       = "path"
+TelemetryClientSubsystemName    = "telemetry"
+TelemetryClientCheckDescription = "control plane can use telemetry service"
+
+stepMap = map[pb.TimeWindow]string{
+  pb.TimeWindow_TEN_SEC:  "10s",
+  pb.TimeWindow_ONE_MIN:  "10s",
+  pb.TimeWindow_TEN_MIN:  "10s",
+  pb.TimeWindow_ONE_HOUR: "1m",
+}
+```
+
+```
+# !timeseries == summarize == query()
+histogram_quantile(0.95, sum(irate(response_latency_ms_bucket{source_deployment="emojivoto/web"}[10m])) by (target_deployment,le,source_deployment))
+
+# timeseries == !summarize == queryRange()
+histogram_quantile(0.5, sum(irate(response_latency_ms_bucket{source_deployment="emojivoto/web"}[1m])) by (target_deployment,le,source_deployment))
+```
+
+- decrease `defaultVectorRange` (and use it all the time) from `1m` to `30s`, 3x multiple of prometheus' `scrape_interval: 10s`
+- don't query for entire timeseries on summarize queries
+  - replace `queryRange` with `query`
+- change `irate` to `rate` in `histogram_quantile` (maybe not if we're doing `query` not `queryRange`?)
+- recording rules
+  - histogram_quantile / latency
+
 ## Go
 
 These commands assume working [Go](https://golang.org) and
